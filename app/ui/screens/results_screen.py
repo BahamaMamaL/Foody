@@ -58,8 +58,10 @@ class ResultsScreen(QWidget):
     def refresh(self) -> None:
         self.list_widget.clear()
         for r in self.state.recipes:
-            # Store recipe_id in item text (simple MVP)
-            self.list_widget.addItem(f"{r.id} - {r.title}")
+            used = r.used_ingredient_count if r.used_ingredient_count is not None else "?"
+            missed = r.missed_ingredient_count if r.missed_ingredient_count is not None else "?"
+            self.list_widget.addItem(f"{r.title}  |  Used: {used}  Missing: {missed}")
+
 
     def _selected_recipe_id(self) -> int | None:
         row = self.list_widget.currentRow()

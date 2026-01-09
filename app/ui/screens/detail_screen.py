@@ -68,6 +68,15 @@ class DetailScreen(QWidget):
         self.ingredients_view.setReadOnly(True)
         ingredients_col.addWidget(self.ingredients_view, 1)
 
+        missing_title = QLabel("Missing ingredients")
+        missing_title.setStyleSheet("font-weight: bold;")
+        ingredients_col.addWidget(missing_title)
+
+        self.missing_view = QTextEdit()
+        self.missing_view.setReadOnly(True)
+        self.missing_view.setMaximumHeight(120)
+        ingredients_col.addWidget(self.missing_view)
+
         header_row.addLayout(ingredients_col, 1)
         root.addLayout(header_row)
 
@@ -130,6 +139,7 @@ class DetailScreen(QWidget):
             self.image_label.setText("No image")
             self.image_label.setPixmap(QPixmap())
             self.ingredients_view.setText("")
+            self.missing_view.setText("")
             self.instructions_view.setText("")
             self.chat_view.setText("")
             return
@@ -158,6 +168,17 @@ class DetailScreen(QWidget):
         # Ingredients right column
         ingredients_block = "\n".join(f"• {x}" for x in recipe.ingredients)
         self.ingredients_view.setText(ingredients_block)
+
+        # Missing ingredients from the search summary (if available)
+        summary = next((s for s in self.state.recipes if s.id == recipe.id), None)
+        if summary and summary.missed_ingredients:
+            self.missing_view.setText("\n".join(f"• {x}" for x in summary.missed_ingredients))
+        else:
+            # fallback: at least show the count if we have it
+            if summary and summary.missed_ingredient_count is not None:
+                self.missing_view.setText(f"Missing count: {summary.missed_ingredient_count}")
+            else:
+                self.missing_view.setText("None")
 
         # Instructions below
         self.instructions_view.setText(recipe.instructions)

@@ -69,8 +69,9 @@ class ScanScreen(QWidget):
         root.addWidget(self.scan_btn)
 
         self.next_btn = QPushButton("Weiter")
-        self.next_btn.setEnabled(False)
-        self.next_btn.clicked.connect(self.on_next)
+        # Allow skipping scan even if nothing detected
+        self.next_btn.setEnabled(True)
+        self.next_btn.clicked.connect(self.handle_next)
         root.addWidget(self.next_btn)
 
         self.setLayout(root)
@@ -82,11 +83,23 @@ class ScanScreen(QWidget):
 
         self.refresh()
 
+    def handle_next(self) -> None:
+        # Optional UX hint (non-blocking)
+        if len(self.state.ingredients) == 0:
+            QMessageBox.information(
+                self,
+                "No ingredients detected",
+                "No ingredients were detected. You can add ingredients manually on the next screen.",
+            )
+        self.on_next()
+
     def refresh(self) -> None:
         self.list_widget.clear()
         for item in self.state.ingredients:
             self.list_widget.addItem(f"{item.name_raw} ({item.source})")
-        self.next_btn.setEnabled(len(self.state.ingredients) > 0)
+
+        # Always allow Next (skip supported)
+        self.next_btn.setEnabled(True)
 
     def _update_preview(self) -> None:
         ok, frame = self.cap.read()

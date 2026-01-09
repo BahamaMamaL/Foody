@@ -77,7 +77,6 @@ class PreferencesScreen(QWidget):
         self.intol_container.setVisible(True)
         root.addWidget(self.intol_container)
 
-
         # --- Sort ---
         root.addWidget(QLabel("Sort by"))
         self.sort_combo = QComboBox()

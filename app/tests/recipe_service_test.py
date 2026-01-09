@@ -22,7 +22,7 @@ prefs = UserPreferences(
 recipes = service.search_recipes(ingredients, prefs)
 print("Found:", len(recipes))
 for r in recipes:
-    print(r.id, r.title)
+    print(r.id, r.title, "| used:", r.used_ingredient_count, "| missed:", r.missed_ingredient_count)
 
 if recipes:
     detail = service.load_recipe_detail(recipes[0].id)

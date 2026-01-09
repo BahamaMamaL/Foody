@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Dict, Any, List
+from typing import Any, Dict, List
 
 from app.domain.constants import DIETS, INTOLERANCES, CUISINES, SORT_MODES
 from app.domain.models import IngredientItem, UserPreferences, RecipeSummary, RecipeDetail
@@ -41,6 +41,7 @@ class RecipeService:
             "sort": sort_mode,
             "ignorePantry": "true",
             "instructionsRequired": "true",
+            "fillIngredients": "true",
         }
 
         # diet

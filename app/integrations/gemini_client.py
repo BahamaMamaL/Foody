@@ -33,9 +33,10 @@ class GeminiClient:
         instructions_block = recipe.instructions[:3000]  # nicht zu lang
 
         system_prompt = (
-            "Du bist ein hilfreicher Koch-Assistent. "
-            "Beantworte Fragen zum Rezept präzise und praktisch. "
-            "Wenn etwas im Rezept nicht steht, sag das ehrlich und gib eine plausible Empfehlung."
+            "You are a helpful cooking assistant. "
+            "Answer questions about the recipe clearly and practically. "
+            "IMPORTANT: Always reply in the same language as the user's latest question. "
+            "If the recipe doesn't contain the requested information, say so and provide a reasonable suggestion."
         )
 
         # History als kurzer Dialog (optional)
@@ -56,8 +57,8 @@ class GeminiClient:
             model=self.model,
             contents=[user_prompt],
             config=types.GenerateContentConfig(
-                system_instruction=system_prompt,
-                temperature=0.3,
+            system_instruction=system_prompt,
+            temperature=0.3,
             ),
         )
 

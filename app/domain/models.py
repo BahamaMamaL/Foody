@@ -1,7 +1,7 @@
 # app/domain/models.py
 
 from __future__ import annotations
-
+from typing import Optional, List
 from dataclasses import dataclass
 from typing import Optional, List, Literal
 
@@ -39,6 +39,12 @@ class RecipeSummary:
     id: int
     title: str
     image: Optional[str] = None
+
+    # NEW (optional, kommt von Spoonacular wenn fillIngredients=true)
+    used_ingredient_count: Optional[int] = None
+    missed_ingredient_count: Optional[int] = None
+    used_ingredients: Optional[List[str]] = None
+    missed_ingredients: Optional[List[str]] = None
 
 
 @dataclass(frozen=True)

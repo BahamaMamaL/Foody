@@ -37,8 +37,6 @@ CUISINES = [
 ]
 
 SORT_MODES = [
-    "popularity",
-    "price",
-    "calories",
-    "time",
+    "max-used-ingredients",
+    "min-missing-ingredients",
 ]
