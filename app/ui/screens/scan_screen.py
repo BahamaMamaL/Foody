@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import cv2
-
 from PySide6.QtCore import Qt, QTimer, QObject, QThread, Signal, Slot
 from PySide6.QtGui import QImage, QPixmap
 from PySide6.QtWidgets import (
@@ -37,6 +36,7 @@ class YoloWorker(QObject):
         if not self._running:
             return
         try:
+            # Extern: detection_service.annotate_on_frame(frame_bgr) -> (annotated_bgr, detected_list)
             annotated, detected = self.detection_service.annotate_on_frame(frame_bgr)
             self.preview_done.emit(annotated, detected)
         except Exception as e:
@@ -53,6 +53,7 @@ class ScanScreen(QWidget):
 
     - Liste rechts zeigt NUR den letzten Snapshot (state.ingredients).
     - Live-Detektion wird nur intern gehalten, damit Snapshot sofort übernommen werden kann.
+    - WICHTIG: Kamera + YOLO laufen nur, wenn der Screen sichtbar ist.
     """
 
     _preview_request = Signal(object)  # frame_bgr (queued to worker)
@@ -70,11 +71,10 @@ class ScanScreen(QWidget):
         self.detection_service = detection_service
         self.ingredient_service = ingredient_service
         self.on_next = on_next
+        self.camera_index = camera_index
 
-        self.cap = cv2.VideoCapture(camera_index)
-        if not self.cap.isOpened():
-            raise RuntimeError(f"Camera not available (index={camera_index})")
-
+        # Camera resources will be opened/closed on show/hide
+        self.cap = None
         self.current_frame = None
 
         # --- Live YOLO cache (für Snapshot) ---
@@ -123,7 +123,7 @@ class ScanScreen(QWidget):
 
         self.setLayout(root)
 
-        # --- YOLO Worker Thread Setup ---
+        # --- YOLO Worker Thread Setup (start/stop on show/hide) ---
         self.worker_thread = QThread(self)
         self.worker = YoloWorker(self.detection_service)
         self.worker.moveToThread(self.worker_thread)
@@ -132,17 +132,101 @@ class ScanScreen(QWidget):
         self.worker.preview_done.connect(self._on_preview_done, Qt.QueuedConnection)
         self.worker.error.connect(self._on_worker_error, Qt.QueuedConnection)
 
-        self.worker_thread.start()
-
-        # --- Timer for live preview ---
+        # --- Timer (start/stop on show/hide) ---
         self.timer = QTimer(self)
         self.timer.timeout.connect(self._update_preview)
-        self.timer.start(30)
 
         # initiale Snapshot-Liste
         self.refresh()
 
-    # ✅ Damit MainWindow weiter self.scan_screen.refresh() aufrufen kann
+    # ------------------------------------------------------------
+    # Lifecycle: start/stop when screen becomes visible/hidden
+    # ------------------------------------------------------------
+    def showEvent(self, event) -> None:
+        super().showEvent(event)
+        self._start_resources()
+
+    def hideEvent(self, event) -> None:
+        super().hideEvent(event)
+        self._stop_resources()
+
+    def _start_resources(self) -> None:
+        # Start camera
+        if self.cap is None:
+            cap = cv2.VideoCapture(self.camera_index)
+            if not cap.isOpened():
+                raise RuntimeError(f"Camera not available (index={self.camera_index})")
+
+            # Big FPS win: reduce capture resolution
+            cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+
+            self.cap = cap
+
+        # Start worker thread
+        if not self.worker_thread.isRunning():
+            self.worker_thread.start()
+
+        # Start preview timer
+        if not self.timer.isActive():
+            self.timer.start(30)
+
+    def _stop_resources(self) -> None:
+        # Stop preview timer
+        try:
+            if self.timer.isActive():
+                self.timer.stop()
+        except Exception:
+            pass
+
+        # Stop pending preview job state
+        self._preview_in_flight = False
+
+        # Stop worker thread
+        try:
+            self.worker.stop()
+        except Exception:
+            pass
+        try:
+            if self.worker_thread.isRunning():
+                self.worker_thread.quit()
+                self.worker_thread.wait(1500)
+        except Exception:
+            pass
+
+        # IMPORTANT: after stopping, recreate worker instance next time (since _running=False)
+        # We'll create a fresh worker on next show to avoid a "dead" worker.
+        try:
+            if self.worker is not None:
+                self.worker.deleteLater()
+        except Exception:
+            pass
+
+        self.worker = YoloWorker(self.detection_service)
+        self.worker.moveToThread(self.worker_thread)
+        self._preview_request.connect(self.worker.process_preview, Qt.QueuedConnection)
+        self.worker.preview_done.connect(self._on_preview_done, Qt.QueuedConnection)
+        self.worker.error.connect(self._on_worker_error, Qt.QueuedConnection)
+
+        # Release camera
+        try:
+            if self.cap is not None:
+                self.cap.release()
+        except Exception:
+            pass
+        self.cap = None
+        self.current_frame = None
+
+        # Clear live overlay cache (optional)
+        self._last_annotated_bgr = None
+        self._last_detected = []
+        self.live_hint.setText("Live: 0")
+        self.preview.setText("Camera preview")
+        self.preview.setPixmap(QPixmap())
+
+    # ------------------------------------------------------------
+    # External refresh hook
+    # ------------------------------------------------------------
     def refresh(self) -> None:
         """Extern aufgerufen beim Screen-Wechsel: zeige letzten Snapshot aus State."""
         self.refresh_snapshot_list()
@@ -163,7 +247,13 @@ class ScanScreen(QWidget):
         for item in self.state.ingredients:
             self.list_widget.addItem(f"{item.name_raw} ({item.source})")
 
+    # ------------------------------------------------------------
+    # Preview loop (UI thread)
+    # ------------------------------------------------------------
     def _update_preview(self) -> None:
+        if self.cap is None:
+            return
+
         ok, frame = self.cap.read()
         if not ok or frame is None:
             return
@@ -175,7 +265,7 @@ class ScanScreen(QWidget):
         self._set_preview_image(show_bgr)
 
         # YOLO Preview anstoßen, aber nur ein Job gleichzeitig
-        if not self._preview_in_flight:
+        if not self._preview_in_flight and self.worker_thread.isRunning():
             self._preview_in_flight = True
             self._preview_request.emit(frame.copy())
 
@@ -189,7 +279,7 @@ class ScanScreen(QWidget):
             self.preview.width(),
             self.preview.height(),
             Qt.KeepAspectRatio,
-            Qt.SmoothTransformation,
+            Qt.FastTransformation,  # Faster than SmoothTransformation
         )
         self.preview.setPixmap(pix)
 
@@ -233,26 +323,13 @@ class ScanScreen(QWidget):
         self._preview_in_flight = False
         # bewusst kein Popup-Spam bei Preview-Fehlern
 
+    # ------------------------------------------------------------
+    # Final cleanup (window close)
+    # ------------------------------------------------------------
     def closeEvent(self, event) -> None:
+        # ensure resources are stopped
         try:
-            self.timer.stop()
+            self._stop_resources()
         except Exception:
             pass
-
-        try:
-            self.worker.stop()
-        except Exception:
-            pass
-        try:
-            self.worker_thread.quit()
-            self.worker_thread.wait(1500)
-        except Exception:
-            pass
-
-        try:
-            if self.cap:
-                self.cap.release()
-        except Exception:
-            pass
-
         super().closeEvent(event)
