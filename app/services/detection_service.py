@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 
+import torch
 from ultralytics import YOLO
 
 from app.domain.models import RecognizedIngredient
@@ -14,23 +15,47 @@ class DetectionService:
         self,
         model_path: str,
         camera_index: int = 0,
-        confidence_threshold: float = 0.6,
+        confidence_threshold: float = 0.3,
+
+        device: Optional[str] = None,   # <--- WICHTIG: Default auf None, damit Auto-Detect greift
     ) -> None:
         self.camera_index = camera_index
         self.confidence_threshold = confidence_threshold
 
+        # Automatische Erkennung der Hardware
+        if device is None:
+            if torch.cuda.is_available():
+                self.device = "cuda:0"
+                # Info-Print für dich, damit du sicher bist
+                print(f"✅ GPU aktiviert: {torch.cuda.get_device_name(0)}")
+            else:
+                self.device = "cpu"
+                print("⚠️ Keine GPU gefunden (oder CUDA nicht installiert). Nutze CPU.")
+        else:
+            self.device = device
+
         try:
             self.model = YOLO(model_path)
+
+            # Modell explizit auf die GPU schieben
+            self.model.to(self.device)
+
         except Exception as e:
             raise RuntimeError(f"Model load failed: {e}") from e
 
+    def _predict(self, frame):
+        """Zentrale Predict-Funktion."""
+        return self.model.predict(
+            frame,
+            conf=self.confidence_threshold,
+            device=self.device,     # Nutzt "cuda:0" wenn verfügbar
+            verbose=False,
+            iou = 0.95
+        )
+
     def detect_on_frame(self, frame) -> List[RecognizedIngredient]:
-        """
-        YOLO inference auf einem bestehenden Frame (numpy array).
-        Gibt nur die Detektionen zurück (keine Annotation).
-        """
         try:
-            results = self.model.predict(frame, conf=self.confidence_threshold, verbose=False)
+            results = self._predict(frame)
         except Exception as e:
             raise RuntimeError(f"YOLO inference failed: {e}") from e
 
@@ -45,17 +70,13 @@ class DetectionService:
         return detected
 
     def annotate_on_frame(self, frame) -> Tuple["object", List[RecognizedIngredient]]:
-        """
-        YOLO inference + annotated frame (mit Boxes/Labels).
-        Returns:
-          annotated_frame (BGR numpy array)
-          detected: List[RecognizedIngredient]
-        """
         try:
-            results = self.model.predict(frame, conf=self.confidence_threshold, verbose=False)
+            results = self._predict(frame)
         except Exception as e:
             raise RuntimeError(f"YOLO inference failed: {e}") from e
 
+        # Plot rendert das Bild mit Boxen.
+        # ACHTUNG: Das Ergebnis ist ein numpy-array im BGR Format (OpenCV Standard)
         annotated = results[0].plot() if results else frame
 
         detected: List[RecognizedIngredient] = []

@@ -29,7 +29,7 @@ class MainWindow(QMainWindow):
         self.ingredient_service = IngredientService()
 
         # Modellpfad: (relativ zur Working Directory = Projekt-Root)
-        self.detection_service = DetectionService(model_path="models/best(10).pt")
+        self.detection_service = DetectionService(model_path="models/yolo26final.pt")
 
         self.spoon_client = SpoonacularClient()
         self.recipe_service = RecipeService(self.spoon_client)
