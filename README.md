@@ -1,2 +1,1 @@
-Foody
-Simple ingredient detection and reciper finder app.  
+Foody -  Ingredient detection and reciper finder app.  
