@@ -88,5 +88,5 @@ python main.py
 
 ## Team
 
-- **[Leon Kuvecke](https://github.com/BahamaMamaL)**: app development. Built the PySide desktop app with live YOLO preview (threaded inference), the ingredient review and filter flow, the Spoonacular recipe search and the Gemini recipe chat
-- **[Nikolai Bohse](https://github.com/xxPigelxx)**: dataset & model. Merged and relabeled 21k images from multiple sources, reduced the class set from 40 to 19, trained and tuned YOLO11s/YOLO26s, ran the evaluation and benchmarks
+- **[Leon](https://github.com/BahamaMamaL)**: app development. Built the PySide desktop app with live YOLO preview (threaded inference), the ingredient review and filter flow, the Spoonacular recipe search and the Gemini recipe chat
+- **[Nikolai](https://github.com/xxPigelxx)**: dataset & model. Merged and relabeled 21k images from multiple sources, reduced the class set from 40 to 19, trained and tuned YOLO11s/YOLO26s, ran the evaluation and benchmarks
