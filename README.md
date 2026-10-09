@@ -86,10 +86,6 @@ Then run:
 python main.py
 ```
 
-## Documentation
-
-The full project report (German) covers dataset creation, model architecture, training and a detailed evaluation including confusion matrices: [`docs/Foody_Dokumentation.pdf`](docs/Foody_Dokumentation.pdf)
-
 ## Team
 
 - **Leon Kuvecke**: app development. Built the PySide desktop app with live YOLO preview (threaded inference), the ingredient review and filter flow, the Spoonacular recipe search and the Gemini recipe chat
